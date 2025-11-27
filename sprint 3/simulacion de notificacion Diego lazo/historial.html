@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Cocina - Pedidos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta http-equiv="refresh" content="10"> 
+</head>
+<body class="bg-dark text-white p-4">
+    <div class="container-fluid">
+        
+        <div class="d-flex justify-content-between align-items-center mb-5 border-bottom border-secondary pb-3">
+            <h1 class="m-0 display-6">👨‍🍳 Cocina: Pedidos en Preparación</h1>
+            <a href="{% url 'index' %}" class="btn btn-outline-warning btn-lg fw-bold">
+                ⬅️ Volver a Mesas
+            </a>
+        </div>
+        
+        <div class="row">
+            {% for pedido in pedidos %}
+            <div class="col-md-4 col-lg-3 mb-4">
+                <div class="card text-dark h-100 shadow">
+                    <div class="card-header bg-warning fw-bold d-flex justify-content-between align-items-center">
+                        <span class="fs-4">Mesa {{ pedido.mesa.numero }}</span>
+                        <span class="badge bg-dark">{{ pedido.fecha_actualizacion|time:"H:i" }}</span>
+                    </div>
+                    
+                    <div class="card-body bg-light">
+                        <h5 class="card-title text-primary mb-3">Cliente: {{ pedido.cliente.nombre }}</h5>
+                        <ul class="list-group list-group-flush border rounded">
+                            {% for detalle in pedido.detalles.all %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">{{ detalle.producto.nombre }}</span>
+                                <span class="badge bg-primary rounded-pill fs-5">{{ detalle.cantidad }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <div class="card-footer bg-light border-top-0 p-3">
+                        <button class="btn btn-success w-100 fw-bold py-2" onclick="marcarListo({{ pedido.id }})">
+                            ✅ ¡Pedido Listo!
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center mt-5">
+                <div class="p-5 bg-secondary bg-opacity-25 rounded-3 border border-secondary border-opacity-50">
+                    <h2 class="text-white-50 display-6">No hay pedidos pendientes.</h2>
+                    <p class="lead text-white-50">¡Buen trabajo equipo! 👏</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        function marcarListo(pedidoId) {
+            // Confirmación simple
+            if(!confirm("¿Confirmar que el pedido está LISTO para servir?")) return;
+
+            // Llamada real al Backend (API)
+            fetch("{% url 'api_pedido_listo' %}", {
+                method: 'POST',
+                body: JSON.stringify({ pedido_id: pedidoId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    // Si funcionó, recargamos la página para que el pedido desaparezca de la cocina
+                    location.reload(); 
+                } else {
+                    alert("Error: " + (data.error || "No se pudo actualizar el estado"));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Error de conexión con el servidor");
+            });
+        }
+    </script>
+</body>
+</html>
