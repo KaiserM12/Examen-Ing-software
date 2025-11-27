@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Toma de Pedido</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- ESTILOS CORREGIDOS PARA LA IMAGEN --- */
+        body { font-family: 'Roboto', sans-serif; margin: 0; padding: 0; height: 100vh; display: flex; background-color: #fff; color: #333; }
+        .container { display: flex; width: 100%; height: 100%; }
+        
+        /* SIDEBAR */
+        .sidebar { width: 320px; border-right: 2px solid #ccc; display: flex; flex-direction: column; background-color: #fff; }
+        .sidebar-header { padding: 20px; border-bottom: 2px solid #ccc; font-size: 1.5em; font-weight: bold; }
+        
+        /* Lista de Pedidos en Sidebar */
+        .order-list-section { flex-grow: 1; overflow-y: auto; padding: 10px; background-color: #f9f9f9; }
+        .order-item { background: white; border: 1px solid #ddd; margin-bottom: 5px; padding: 8px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; }
+        .order-item span { font-size: 0.9em; }
+        .btn-mini-del { background: #ff4d4d; color: white; border: none; border-radius: 3px; cursor: pointer; padding: 2px 6px; font-weight: bold; }
+
+        .sidebar-footer { padding: 20px; border-top: 2px solid #ccc; background-color: #eee; }
+        .btn-enviar { background-color: #0099cc; color: white; border: none; padding: 10px; width: 100%; font-size: 1.1em; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        
+        /* MAIN CONTENT */
+        .main-content { flex-grow: 1; padding: 20px; overflow-y: auto; }
+        .category-title { text-align: center; font-size: 2em; margin-bottom: 30px; }
+        .footer-total { margin-top: 20px; font-size: 1.5em; font-weight: bold; color: #333; }
+
+        /* PRODUCT CARDS */
+        .product-card { border: 1px solid #333; margin-bottom: 20px; display: flex; flex-direction: column; }
+        .card-body { display: flex; flex-direction: row; height: 120px; }
+        
+        .card-img-placeholder { 
+            width: 150px; 
+            height: 120px; /* Igual a la altura de .card-body */
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: #eee; 
+            color: #aaa; 
+            font-size: 0.8em; 
+            cursor: pointer; 
+            overflow: hidden; /* Oculta partes de la imagen si se desbordan */
+        }
+        .card-img-placeholder img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Asegura que la imagen cubra el área sin deformarse */
+        }
+        .card-img-placeholder:hover { background: #ddd; color: #333; }
+        
+        .card-info { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; padding: 5px 10px; }
+        .style-red .card-info { background-color: #ff0055; color: black; }
+        .style-green .card-info { background-color: #66ff66; color: black; }
+        .card-actions { display: flex; border-top: 1px solid #333; }
+        .action-btn { flex: 1; background: white; border: none; padding: 10px; font-weight: bold; font-size: 1.1em; cursor: pointer; border-right: 1px solid #333; }
+        .action-btn:last-child { border-right: none; }
+        .action-btn:hover { background-color: #f0f0f0; }
+
+        /* MODAL */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-modal:hover { color: black; }
+        .modal-header h2 { margin-top: 0; }
+        .modal-body p { margin: 10px 0; font-size: 1.1em; }
+
+        /* Notificación Error */
+        .error-box { background-color: #ffcccc; border: 2px solid #ff4d4d; color: #333; padding: 10px; display: none; margin: 10px; font-size: 0.9em; position: relative; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span>☰ Pedido Actual</span>
+                <a href="{% url 'gestion_mesas' %}" style="font-size: 0.8em; text-decoration: none; color: #0099cc; font-weight: normal;">
+                    ⬅️ Volver a Mesas
+                </a>
+            </div>
+        </div>
+
+        <div class="order-list-section">
+            {% if detalles_pedido %}
+                {% for detalle in detalles_pedido %}
+                    <div class="order-item" id="fila-detalle-{{ detalle.producto.id }}">
+                        <span>
+                            <strong>{{ detalle.cantidad }}x</strong> {{ detalle.producto.nombre }}
+                        </span>
+                        <button class="btn-mini-del" onclick="modificarCantidad({{ detalle.producto.id }}, 'eliminar')">🗑</button>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p style="text-align:center; color:#777;">Pedido Vacío</p>
+            {% endif %}
+        </div>
+
+        <div id="error-box" class="error-box" onclick="this.style.display='none'">
+            <strong>Error:</strong> Ingrediente Agotado.
+        </div>
+
+        <div class="sidebar-footer">
+            <div style="font-size: 1.2em; font-weight: bold; margin-bottom: 10px;">
+                Total: $<span id="sidebar-total">{{ subtotal_pedido|floatformat:0 }}</span>
+            </div>
+            <button class="btn-enviar" onclick="enviarACocina()">Enviar a Cocina</button>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        {% for categoria, productos in productos_por_categoria.items %}
+            <div class="categoria-wrapper">
+                <h2 class="category-title">{{ categoria }}</h2>
+                {% for producto in productos %}
+                    <div class="product-card {% if producto.disponible %}style-green{% else %}style-red{% endif %}">
+                        <div class="card-body">
+                            
+                            <div class="card-img-placeholder" onclick="verInfoProducto({{ producto.id }})">
+                                {% if producto.imagen %}
+                                    <img src="{{ producto.imagen.url }}" alt="{{ producto.nombre }}">
+                                {% else %}
+                                    [Ver Info]
+                                {% endif %}
+                            </div>
+                            <div class="card-info">
+                                <div style="font-weight: bold; display: flex; justify-content: space-between;">
+                                    <span>{{ producto.nombre }}</span>
+                                    <span>${{ producto.precio|floatformat:0 }}</span>
+                                </div>
+                                <div style="font-size: 0.85em; margin-top:5px;">
+                                    {% if producto.disponible %}Ingredientes Disponibles{% else %}Falta Ingrediente{% endif %}
+                                </div>
+                                <div style="margin-top: auto; text-align: right;">
+                                    {% if producto.disponible %}⭐⭐⭐⭐⭐{% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-actions">
+                            <button class="action-btn" onclick="modificarCantidad({{ producto.id }}, 'restar')">
+                                🗑 Quitar (-1)
+                            </button>
+
+                            {% if producto.disponible %}
+                                <button class="action-btn" onclick="modificarCantidad({{ producto.id }}, 'sumar')">
+                                    ➕ Añadir (+1)
+                                </button>
+                            {% else %}
+                                <button class="action-btn" onclick="mostrarError()">
+                                    ➕ Añadir
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+
+        <div class="footer-total">
+            SUBTOTAL: <span id="main-subtotal">{{ subtotal_pedido|floatformat:0 }}</span> CLP
+        </div>
+    </main>
+</div>
+
+<div id="infoModal" class="modal">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModal()">&times;</span>
+        <div class="modal-header">
+            <h2 id="modal-nombre">Nombre Producto</h2>
+        </div>
+        <div class="modal-body">
+            <p><strong>Categoría:</strong> <span id="modal-cat"></span></p>
+            <p><strong>Precio:</strong> $<span id="modal-precio"></span></p>
+            <p><strong>Ingredientes:</strong> <span id="modal-ingredientes"></span></p>
+            <p><strong>Descripción:</strong> <span id="modal-desc"></span></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    function modificarCantidad(productoId, accion) {
+        let url = "";
+        const formData = new FormData();
+        formData.append('producto_id', productoId);
+        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+        const urlAgregar = "{% url 'agregar_producto' pedido.id %}";
+        const urlModificar = "{% url 'modificar_producto' pedido.id %}";
+
+        if (accion === 'sumar') {
+            url = urlAgregar; 
+        } else {
+            url = urlModificar;
+            formData.append('accion', accion);
+        }
+
+        fetch(url, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Error en la petición: " + response.statusText);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if(data.success) {
+                location.reload(); 
+            } else {
+                console.error("Error lógico:", data);
+                if (accion !== 'restar') {
+                    alert("Error: " + (data.error || "Desconocido"));
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error de Red o Código:', error);
+            alert("Hubo un problema al conectar con el servidor.");
+        });
+    }
+
+    function verInfoProducto(productoId) {
+        let urlBase = "{% url 'info_producto' 0 %}";
+        const urlFinal = urlBase.replace('0', productoId);
+
+        fetch(urlFinal)
+        .then(res => {
+            if (!res.ok) throw new Error("Producto no encontrado");
+            return res.json();
+        })
+        .then(data => {
+            document.getElementById('modal-nombre').innerText = data.nombre;
+            document.getElementById('modal-cat').innerText = data.categoria;
+            document.getElementById('modal-precio').innerText = data.precio;
+            document.getElementById('modal-ingredientes').innerText = data.ingredientes;
+            document.getElementById('modal-desc').innerText = data.descripcion;
+            
+            document.getElementById('infoModal').style.display = "block";
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert("No se pudo cargar la info del producto.");
+        });
+    }
+
+    function cerrarModal() {
+        document.getElementById('infoModal').style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('infoModal')) {
+            cerrarModal();
+        }
+    }
+
+    function mostrarError() {
+        const box = document.getElementById('error-box');
+        box.style.display = 'flex';
+        setTimeout(() => box.style.display = 'none', 3000);
+    }
+
+    function enviarACocina() {
+    if(!confirm("¿Confirmar envío a cocina?")) return;
+
+    fetch("{% url 'confirmar_pedido' pedido.id %}", {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'}
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            alert("¡Pedido enviado a cocina!");
+            window.location.href = "{% url 'historial_cocina' %}";
+        } else {
+            alert("Error: " + data.error);
+        }
+    });
+}
+</script>
+</body>
+</html>
